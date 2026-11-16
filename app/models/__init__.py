@@ -1,5 +1,4 @@
-"""Importe aqui todos os models (User, Room, Reservation) quando forem criados.
-
-O Alembic só enxerga as tabelas dos models que foram importados.
-"""
 from app.database import Base  # noqa: F401
+from app.models.user import User  # noqa: F401
+from app.models.room import Room  # noqa: F401
+from app.models.reservation import Reservation  # noqa: F401
