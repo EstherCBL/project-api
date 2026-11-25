@@ -6,8 +6,6 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    ADMIN_EMAIL: str = "admin@reservas.com"
-    ADMIN_PASSWORD: str = "admin123"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
