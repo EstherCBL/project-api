@@ -1,4 +1,5 @@
-from fastapi import Depends, HTTPException, status
+import jwt
+from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -6,34 +7,26 @@ from app.core.security import decode_access_token
 from app.database import get_db
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token", auto_error=False)
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Credenciais inválidas ou token expirado.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+
+def get_current_user(token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    headers = {"WWW-Authenticate": "Bearer"}
+    if not token:
+        raise HTTPException(401, "Faça login para acessar esta rota.", headers=headers)
+
     try:
-        payload = decode_access_token(token)
-        subject = payload.get("sub")
-        user_id = int(subject)
-    except (ValueError, TypeError):
-        raise credentials_exception
+        user_id = int(decode_access_token(token)["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        raise HTTPException(401, "Token inválido ou expirado.", headers=headers)
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise credentials_exception
-
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(401, "Token inválido ou expirado.", headers=headers)
     return user
 
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if getattr(current_user, "role", None) != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso restrito a administradores.",
-        )
-    return current_user
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "admin":
+        raise HTTPException(403, "Acesso restrito a administradores.")
+    return user
