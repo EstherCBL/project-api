@@ -14,6 +14,12 @@ uvicorn app.main:app --reload
 
 Depois é só abrir http://127.0.0.1:8000/docs
 
+No `.env`, troque o `SECRET_KEY` por uma chave grande. Dá pra gerar uma com:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
 ## Testes
 
 ```bash
@@ -35,10 +41,9 @@ Depois de rodar as migrations, crie o admin e as salas de exemplo:
 python -m app.seed
 ```
 
-O email e a senha do admin vêm de `ADMIN_EMAIL` e `ADMIN_PASSWORD` no `.env`. Pode rodar mais de uma vez: se o admin ou as salas já existirem, nada é duplicado.
+O email e a senha do admin vêm de `ADMIN_EMAIL` e `ADMIN_PASSWORD` no `.env`. Rodar de novo não duplica nada.
 
 ## TODO
 
-- models e CRUD de salas
-- usuários, login com JWT
 - reservas (não deixar reservar horário que já está ocupado)
+- cancelamento de reserva só pelo dono ou admin
