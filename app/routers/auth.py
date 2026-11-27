@@ -1,40 +1,41 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
+from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, Token, UserOut
+from app.schemas.user import Token, UserCreate, UserLogin, UserOut
 
 router = APIRouter(tags=["Auth"])
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == user_in.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, 
-            detail="Email já está cadastrado."
-        )
-    db_user = User(
-        name=user_in.name,
-        email=user_in.email,
-        password_hash=hash_password(user_in.password)
-    )
-    db.add(db_user)
+def gerar_token(db: Session, email: str, password: str) -> dict:
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not verify_password(password, user.password_hash):
+        raise HTTPException(401, "E-mail ou senha inválidos.")
+    token = create_access_token({"sub": str(user.id), "role": user.role})
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/register", response_model=UserOut, status_code=201)
+def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == user_in.email).first():
+        raise HTTPException(409, "Email já está cadastrado.")
+
+    user = User(name=user_in.name, email=user_in.email, password_hash=hash_password(user_in.password))
+    db.add(user)
     db.commit()
-    db.refresh(db_user)
-    return db_user
+    db.refresh(user)
+    return user
+
 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == credentials.email).first()
-    if not user or not verify_password(credentials.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="E-mail ou senha inválidos.",
-        )
+    return gerar_token(db, credentials.email, credentials.password)
 
-    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer"}
+
+# usado pelo botão Authorize do /docs, que manda os dados como formulário
+@router.post("/token", response_model=Token, include_in_schema=False)
+def token_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    return gerar_token(db, form.username, form.password)
